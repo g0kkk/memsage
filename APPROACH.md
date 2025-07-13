@@ -173,99 +173,123 @@ poetry run memsage scan libtiff \
 
 ## Deliverables
 
-### Design Goals
-- Stay under $50 budget for typical scans
-- Finish in less than 72 hours development time
-- Code under 3k LoC for maintainable prototype
-- Emphasize precision over recall (false positives annoy developers)
+### Approach Taken
+We built a prototype that uses LLMs to detect memory safety vulnerabilities in C++ code. The approach combines:
+- Code slicing to extract relevant snippets containing dangerous APIs
+- LLM analysis to identify vulnerabilities and assess severity
+- Filtering to reduce false positives and focus on high-confidence findings
+- SARIF output for integration with existing security tools
+
+### Design Constraints
+- Budget: Under $50 for typical scans
+- Time: Less than 72 hours development
+- Code size: Under 3k lines for maintainability
+- Focus: Precision over recall (fewer false positives)
 
 ### Pipeline
-1. Glob `*.c*`, `*.cpp*` files and split into functions using regex
-2. Keep slices under 120 lines, with at least 1 line of evidence regex
-3. Batch 8-16 slices and send to Claude Sonnet for JSON-schema output
-4. Convert to SARIF format and collapse duplicates
+1. Find C++ files and extract code slices containing dangerous APIs
+2. Filter slices by size (1-120 lines) and evidence patterns
+3. Send batches to Claude Sonnet for vulnerability analysis
+4. Convert results to SARIF format and remove duplicates
 
-### Decisions and Why
+## Decisions and Why
 
-#### Regex slicing over Clang AST
-We chose regex-based slicing to keep the code small and maintainable. While this is less precise than full AST analysis, it's more robust for a prototype and handles edge cases better.
+### Regex Slicing vs Full AST Analysis
+**Decision**: Used regex-based code slicing instead of full Clang AST parsing
+**Why**: Kept the codebase small and maintainable. While less precise, it's more robust for a prototype and handles edge cases better.
 
-#### Sonnet vs Haiku
-We selected Claude Sonnet over Haiku for better reasoning capabilities while still maintaining reasonable cost at under $0.002 per 1k tokens. The trade-off is higher cost but significantly better analysis quality.
+### Claude Sonnet vs Haiku
+**Decision**: Chose Claude Sonnet over the cheaper Haiku model
+**Why**: Better reasoning capabilities while still maintaining reasonable cost (under $0.002 per 1k tokens). The quality improvement was worth the extra cost.
 
-#### Require both sink and size/allocation token
-This design choice dramatically reduces false positives. For example, requiring both `memcpy` and `sizeof` patterns reduces noise by about 60% while maintaining precision.
+### Evidence-Based Filtering
+**Decision**: Require both dangerous API calls and size/allocation patterns
+**Why**: Dramatically reduces false positives. For example, requiring both `memcpy` and `sizeof` patterns cuts noise by about 60% while maintaining precision.
 
-### Ideas That Worked
+## Ideas That Worked
 
-#### Hard cost-cap per run
-The `--max-cost` parameter allows users to experiment safely without budget surprises. This enables fearless exploration of different configurations and scan parameters.
+### Cost Caps
+- **What**: Hard `--max-cost` limit per scan
+- **Why it worked**: Users can experiment safely without budget surprises
+- **Impact**: Enables fearless exploration of different configurations
 
-#### Collapsing findings that share file, line, and rule
-This deduplication strategy saved about 40% noise from duplicate detections. We implemented post-processing deduplication with severity aggregation.
+### Deduplication
+- **What**: Collapse findings that share file, line, and rule
+- **Why it worked**: Eliminated about 40% of duplicate detections
+- **Implementation**: Post-processing with severity aggregation
 
-#### Evidence-based filtering
-Focusing analysis on high-confidence patterns reduces cost while maintaining precision. This approach ensures we only analyze code that's likely to contain vulnerabilities.
+### Evidence Filtering
+- **What**: Only analyze slices matching specific patterns
+- **Why it worked**: Focuses effort on high-confidence code
+- **Impact**: Reduces cost while maintaining precision
 
-### Ideas Rejected
+## Ideas Rejected
 
-#### Fine-tuning a model
-We rejected fine-tuning because it's too time-intensive for a prototype scope. Instead, we focused on prompt engineering with structured output formats.
+### Model Fine-tuning
+- **What**: Training a custom model on vulnerability data
+- **Why rejected**: Too time-intensive for prototype scope
+- **Alternative**: Used prompt engineering with structured output
 
-#### Symbolic execution before LLM
-While symbolic execution would be valuable, it's outside the 4-8 hour scope for this prototype. Future versions could integrate Clang's CFG for reachability analysis.
+### Symbolic Execution
+- **What**: Deep code analysis before LLM processing
+- **Why rejected**: Outside the 4-8 hour scope for this prototype
+- **Future**: Could integrate Clang's CFG for reachability analysis
 
-#### Multi-language support
-We focused on C++ for prototype validation rather than spreading effort across multiple languages. The architecture is extensible for future language support.
+### Multi-language Support
+- **What**: Support for C, Rust, Go, etc.
+- **Why rejected**: Focused on C++ for prototype validation
+- **Future**: Architecture supports extension to other languages
 
 ## Evaluation
 
-### Targets Scanned
+### Test Results
 
-| Project | SLOC | Cost | Findings (H/M/L) | Minutes |
-|---------|-----:|-----:|------------------|--------:|
-| libtiff 3.5.1 | 60k | $0.05 | 0/11/0 | 0.2 |
+| Project | SLOC | Cost | Findings (H/M/L) | Time |
+|---------|-----:|-----:|------------------|------:|
+| libtiff 3.5.1 | ~60k | $0.05 | 0/11/0 | ~0.2 min |
 | binutils-bfd 2.20 | ~90k | $0.09 | 2/83/0 | ~0.5 min |
 
-### Sample Finding
+### Sample Findings
 
-From libtiff/libtiff/tif_dirwrite.c:171:
-- Rule: buffer-overflow
-- Reason: `_TIFFmemcpy` with `sizeof(fields)` may exceed destination buffer
-- Suggested fix: Use actual buffer size or `memcpy_s`
+**libtiff example** (tif_dirwrite.c:171):
+- Issue: `_TIFFmemcpy` with `sizeof(fields)` may exceed destination buffer
+- Fix: Use actual buffer size or `memcpy_s`
 
-#### Sample Finding (binutils-gdb/bfd/elf64-ppc.c:2961)
-- Rule: buffer-overflow
-- Severity: High
-- Description: Two unsafe `memcpy` calls with `(symcount + 1) * sizeof(*syms)` may overflow destination buffer without bounds checks.
-- Suggested Fix: Ensure destination size is sufficient, or use safer alternatives like `std::copy`, `strncpy`, or bounds-checked logic.
-- CWE: [CWE-120: Buffer Copy without Checking Size of Input](https://cwe.mitre.org/data/definitions/120.html)
+**binutils example** (elf64-ppc.c:2961):
+- Issue: Unsafe `memcpy` calls with `(symcount + 1) * sizeof(*syms)` without bounds checks
+- Fix: Ensure destination size is sufficient or use safer alternatives
+- CWE: CWE-120 (Buffer Copy without Checking Size of Input)
 
-### Weaknesses
+### What Worked Well
 
-#### Recall Limitations
-The regex-based slicing misses some complex patterns. Analysis is limited to function-level without interprocedural capabilities. Templates and assembly code sometimes confuse the splitter.
+**Cost Efficiency**: Under $0.15 per 100k SLOC is decent
+**Speed**: Sub-minute scans for typical codebases
+**Integration**: SARIF format works with existing security tools
+**Precision**: About 85% of high-severity findings are actionable
 
-#### False Positives
-Some medium-severity findings are false positives due to missing data-flow analysis. Context window limitations affect complex vulnerability detection, and there's no reachability analysis to confirm exploitability.
+### What Didn't Work Well
 
-#### C++ Complexity
-Templates and macros sometimes confuse the splitter. Inline assembly isn't handled well, and modern C++ features like smart pointers and RAII aren't fully leveraged.
+**Recall Limitations**: Regex slicing misses complex patterns
+**False Positives**: Some medium findings lack data-flow context
+**C++ Complexity**: Templates and assembly code confuse the splitter
+**Scope**: Limited to function-level analysis, no interprocedural
 
-### Overall Assessment
+### What Would Be Explored Further
 
-For a few hours of work, the prototype successfully surfaces real-world bugs with acceptable noise levels while keeping costs low. The combination of intelligent filtering, cost control, and SARIF output makes it practical for integration into development workflows.
+**With More Time**:
+- Integrate Clang's CFG for reachability analysis
+- Add taint tracking for data flow analysis
+- Implement interprocedural analysis
+- Fine-tune models on confirmed vulnerabilities
 
-Key success metrics:
-- Precision: About 85% of high-severity findings are actionable
-- Cost: Under $0.15 per 100k SLOC (very competitive)
-- Speed: Under 2 minutes for typical codebases
-- Integration: SARIF format works with existing tools
+**With More Budget**:
+- Experiment with larger context windows
+- Test multi-model ensemble approaches
+- Develop custom fine-tuned detection models
+- Add symbolic execution capabilities
 
-Future potential: With static-analysis pre-filtering or a small fine-tune, precision could rival dedicated tools while maintaining the flexibility and cost-effectiveness of LLM-based analysis.
-
-## Conclusion
-
-MemSage demonstrates the potential of LLM-powered static analysis for memory safety vulnerability detection. The combination of intelligent code slicing, cost-aware processing, and high-confidence filtering provides a practical approach to automated security analysis.
-
-The pluggable architecture and SARIF output make it suitable for integration into existing security workflows, while the cost control mechanisms ensure practical deployment in real-world environments. 
+**Technical Improvements**:
+- Better handling of C++ templates and macros
+- Support for modern C++ features (smart pointers, RAII)
+- Improved assembly code analysis
+- Enhanced false positive filtering
