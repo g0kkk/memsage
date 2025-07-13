@@ -224,7 +224,7 @@ We focused on C++ for prototype validation rather than spreading effort across m
 
 | Project | SLOC | Cost | Findings (H/M/L) | Minutes |
 |---------|-----:|-----:|------------------|--------:|
-| libtiff 4.6 | 60k | $0.05 | 0/11/0 | 0.2 |
+| libtiff 3.5.1 | 60k | $0.05 | 0/11/0 | 0.2 |
 
 ### Sample Finding
 
