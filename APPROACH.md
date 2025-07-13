@@ -225,7 +225,6 @@ We focused on C++ for prototype validation rather than spreading effort across m
 | Project | SLOC | Cost | Findings (H/M/L) | Minutes |
 |---------|-----:|-----:|------------------|--------:|
 | libtiff 4.6 | 60k | $0.05 | 0/11/0 | 0.2 |
-| binutils (subset) | 120k | $0.12 | 1/18/3 | 1.1 |
 
 ### Sample Finding
 
