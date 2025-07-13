@@ -225,6 +225,7 @@ We focused on C++ for prototype validation rather than spreading effort across m
 | Project | SLOC | Cost | Findings (H/M/L) | Minutes |
 |---------|-----:|-----:|------------------|--------:|
 | libtiff 3.5.1 | 60k | $0.05 | 0/11/0 | 0.2 |
+| binutils-bfd 2.20 | ~90k | $0.09 | 2/83/0 | ~0.5 min |
 
 ### Sample Finding
 
@@ -232,6 +233,13 @@ From libtiff/libtiff/tif_dirwrite.c:171:
 - Rule: buffer-overflow
 - Reason: `_TIFFmemcpy` with `sizeof(fields)` may exceed destination buffer
 - Suggested fix: Use actual buffer size or `memcpy_s`
+
+#### Sample Finding (binutils-gdb/bfd/elf64-ppc.c:2961)
+- Rule: buffer-overflow
+- Severity: High
+- Description: Two unsafe `memcpy` calls with `(symcount + 1) * sizeof(*syms)` may overflow destination buffer without bounds checks.
+- Suggested Fix: Ensure destination size is sufficient, or use safer alternatives like `std::copy`, `strncpy`, or bounds-checked logic.
+- CWE: [CWE-120: Buffer Copy without Checking Size of Input](https://cwe.mitre.org/data/definitions/120.html)
 
 ### Weaknesses
 
