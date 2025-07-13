@@ -94,6 +94,25 @@ class SliceExtractor:
         """Extract slices using libclang AST analysis."""
         slices = []
         
+        # Read the source file first
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            # Try with different encodings
+            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        lines = f.readlines()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                # If all encodings fail, skip this file
+                if self.debug:
+                    print(f"  Could not read file {file_path} with any encoding")
+                return []
+        
         # Parse the file
         tu = self.index.parse(str(file_path), args=['-std=c++17', '-x', 'c++'])
         
@@ -115,10 +134,6 @@ class SliceExtractor:
                         # Get the source code around this call
                         start_line = location.line
                         end_line = location.line
-                        
-                        # Read the source file to get the actual code
-                        with open(file_path, 'r') as f:
-                            lines = f.readlines()
                         
                         if start_line <= len(lines):
                             code_line = lines[start_line - 1].strip()
@@ -155,8 +170,23 @@ class SliceExtractor:
         if self.debug:
             print(f"  Reading file: {file_path}")
         
-        with open(file_path, 'r') as f:
-            lines = f.readlines()
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            # Try with different encodings
+            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        lines = f.readlines()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                # If all encodings fail, skip this file
+                if self.debug:
+                    print(f"  Could not read file {file_path} with any encoding")
+                return []
         
         if self.debug:
             print(f"  Read {len(lines)} lines from file")

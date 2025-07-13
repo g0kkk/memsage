@@ -15,7 +15,7 @@ def scan(
     path: str = typer.Argument(..., help="Path to C++ project or file to scan."),
     cost_dry_run: bool = typer.Option(False, "--cost-dry-run", help="Estimate Claude token spend and exit."),
     max_cost: float = typer.Option(50.0, "--max-cost", help="Maximum spending limit in USD."),
-    format: str = typer.Option("console", "--format", help="Output format (console, sarif, html, json)."),
+    format: str = typer.Option("console", "--format", help="Output format (console, sarif, json)."),
     output: str = typer.Option(None, "--output", help="Output file or directory."),
     provider: str = typer.Option("ollama", "--provider", help="LLM provider (ollama, anthropic)."),
     model: str = typer.Option(None, "--model", help="LLM model to use."),
@@ -107,21 +107,22 @@ def scan(
         print("="*50)
         print(report.summary)
         
-        # Print findings
-        if report.findings:
-            print("\n" + "="*50)
-            print("VULNERABILITY FINDINGS")
-            print("="*50)
-            
-            for i, finding in enumerate(report.findings, 1):
-                print(f"\n{i}. {finding.severity.value.upper()}: {finding.file_path}:{finding.line_number}")
-                print(f"   Rule: {finding.rule_id}")
-                print(f"   Description: {finding.description}")
-                if finding.taint_path:
-                    print(f"   Taint Path: {' -> '.join(finding.taint_path)}")
-                print("-" * 30)
-        else:
-            print("\nNo vulnerabilities found!")
+        # Only print detailed findings if no output file is specified (console mode)
+        if not config.output_path and config.output_format == OutputFormat.CONSOLE:
+            if report.findings:
+                print("\n" + "="*50)
+                print("VULNERABILITY FINDINGS")
+                print("="*50)
+                
+                for i, finding in enumerate(report.findings, 1):
+                    print(f"\n{i}. {finding.severity.value.upper()}: {finding.file_path}:{finding.line_number}")
+                    print(f"   Rule: {finding.rule_id}")
+                    print(f"   Description: {finding.description}")
+                    if finding.taint_path:
+                        print(f"   Taint Path: {' -> '.join(finding.taint_path)}")
+                    print("-" * 30)
+            else:
+                print("\nNo vulnerabilities found!")
         
         # Save output if specified
         if config.output_path:
@@ -191,11 +192,7 @@ def _save_output(report, config):
             exporter.export(report, Path(config.output_path))
             print(f"\nSARIF report saved to: {config.output_path}")
             
-        elif config.output_format == OutputFormat.HTML:
-            from .exporters import HTMLExporter
-            exporter = HTMLExporter(config)
-            exporter.export(report, Path(config.output_path))
-            print(f"\nHTML report saved to: {config.output_path}")
+
             
     except Exception as e:
         print(f"Warning: Could not save output to {config.output_path}: {e}")

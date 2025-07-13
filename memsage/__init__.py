@@ -15,7 +15,7 @@ from .slicer import SliceExtractor, SliceTask
 from .report import VulnerabilityFinding, VulnerabilityReport, Severity
 from .scan import scan_repository
 from .config import ScanConfig, ConfigManager, OutputFormat
-from .exporters import ExportManager, SARIFExporter, HTMLExporter, GitHubCIExporter
+from .exporters import ExportManager, SARIFExporter
 from .cli import app
 
 __all__ = [
@@ -42,8 +42,6 @@ __all__ = [
     
     # Exporters
     "SARIFExporter",
-    "HTMLExporter",
-    "GitHubCIExporter",
     
     # CLI
     "app"

@@ -618,101 +618,11 @@ class SARIFExporter:
 [View CWE Details]({self.HELP_URI_MAP.get(base_finding.rule_id, "")})"""
 
 
-class HTMLExporter:
-    def __init__(self, config: ScanConfig):
-        self.config = config
-    
-    def export(self, report: VulnerabilityReport, output_path: Path) -> None:
-        html_content = self._generate_html(report)
-        output_path.write_text(html_content)
-    
-    def _generate_html(self, report: VulnerabilityReport) -> str:
-        severity_dist = report.get_severity_distribution()
-        
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>MemSage Report</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                .summary {{ background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
-                .finding {{ border: 1px solid #ccc; margin: 10px 0; padding: 15px; border-radius: 5px; }}
-                .critical {{ border-left: 5px solid #d32f2f; }}
-                .high {{ border-left: 5px solid #f57c00; }}
-                .medium {{ border-left: 5px solid #fbc02d; }}
-                .low {{ border-left: 5px solid #388e3c; }}
-                .severity-badge {{ padding: 3px 8px; border-radius: 3px; color: white; font-size: 12px; }}
-                .critical-badge {{ background: #d32f2f; }}
-                .high-badge {{ background: #f57c00; }}
-                .medium-badge {{ background: #fbc02d; color: black; }}
-                .low-badge {{ background: #388e3c; }}
-            </style>
-        </head>
-        <body>
-        <h1>MemSage Vulnerability Report</h1>
-        
-        <div class="summary">
-            <h2>Summary</h2>
-            <p><strong>Total findings:</strong> {len(report.findings)}</p>
-            <p><strong>Files scanned:</strong> {report.total_files_scanned}</p>
-            <p><strong>Scan duration:</strong> {report.scan_duration:.2f} seconds</p>
-            
-            <h3>Severity Distribution</h3>
-            <ul>
-                <li>Critical: {severity_dist['critical']}</li>
-                <li>High: {severity_dist['high']}</li>
-                <li>Medium: {severity_dist['medium']}</li>
-                <li>Low: {severity_dist['low']}</li>
-            </ul>
-        </div>
-        
-        <h2>Findings</h2>
-        """
-        
-        for finding in report.findings:
-            severity_class = finding.severity.value
-            badge_class = f"{severity_class}-badge"
-            
-            html += f"""
-            <div class="finding {severity_class}">
-                <h3><span class="severity-badge {badge_class}">{finding.severity.value.upper()}</span> 
-                    {finding.file_path}:{finding.line_number}</h3>
-                <p><strong>Rule:</strong> {finding.rule_id}</p>
-                <p><strong>Description:</strong> {finding.description}</p>
-                {f'<p><strong>Taint Path:</strong> {" -> ".join(finding.taint_path)}</p>' if finding.taint_path else ''}
-            </div>
-            """
-        
-        html += "</body></html>"
-        return html
-
-
-class GitHubCIExporter:
-    def __init__(self, config: ScanConfig):
-        self.config = config
-    
-    def export_annotations(self, findings: List[VulnerabilityFinding]) -> None:
-        for finding in findings:
-            level = self._get_github_level(finding.severity)
-            print(f"::{level} file={finding.file_path},line={finding.line_number}::{finding.description}")
-    
-    def _get_github_level(self, severity: Severity) -> str:
-        return {
-            Severity.LOW: "notice", 
-            Severity.MEDIUM: "warning", 
-            Severity.HIGH: "error", 
-            Severity.CRITICAL: "error"
-        }.get(severity, "warning")
-
-
 class ExportManager:
     def __init__(self, config: ScanConfig):
         self.config = config
         self.exporters = {
-            "sarif": SARIFExporter(config),
-            "html": HTMLExporter(config),
-            "github": GitHubCIExporter(config)
+            "sarif": SARIFExporter(config)
         }
     
     def export_report(self, report: VulnerabilityReport) -> None:
@@ -722,22 +632,14 @@ class ExportManager:
         for format_name in self.config.output_formats:
             if format_name == "sarif":
                 self._export_sarif(report)
-            elif format_name == "html":
-                self._export_html(report)
             elif format_name == "json":
                 self._export_json(report)
             elif format_name == "console":
                 self._export_console(report)
-            elif format_name == "github":
-                self.exporters["github"].export_annotations(report.findings)
     
     def _export_sarif(self, report: VulnerabilityReport) -> None:
         output_path = self.config.output_dir / "memsage-report.sarif"
         self.exporters["sarif"].export(report, output_path)
-    
-    def _export_html(self, report: VulnerabilityReport) -> None:
-        output_path = self.config.output_dir / "memsage-report.html"
-        self.exporters["html"].export(report, output_path)
     
     def _export_json(self, report: VulnerabilityReport) -> None:
         output_path = self.config.output_dir / "memsage-report.json"

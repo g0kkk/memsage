@@ -13,7 +13,6 @@ class OutputFormat(Enum):
     CONSOLE = "console"
     JSON = "json"
     SARIF = "sarif"
-    HTML = "html"
 
 
 @dataclass
@@ -50,7 +49,6 @@ class ScanConfig:
     
     # Advanced Options
     force_scan: bool = False  # Override cost limits
-    github_ci: bool = False  # GitHub Actions mode
 
 
 class ConfigManager:

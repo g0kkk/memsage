@@ -20,7 +20,7 @@ provider = "ollama"
 model = "codellama:7b"
 
 [output]
-# Output format: "console", "json", "sarif", "html"
+# Output format: "console", "json", "sarif"
 format = "console"
 # Output file path (optional)
 # path = "memsage-report.sarif" 

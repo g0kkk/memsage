@@ -141,17 +141,7 @@ poetry run memsage scan project \
   --max-lines 50
 ```
 
-### CI/CD Integration
 
-Generate SARIF reports for security tools:
-
-```bash
-poetry run memsage scan src \
-  --format sarif \
-  --output security-report.sarif \
-  --max-cost 10 \
-  --min-severity high
-```
 
 ## Understanding Filtering Options
 

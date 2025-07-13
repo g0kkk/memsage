@@ -76,8 +76,6 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
         except Exception as e:
             print(f"Error extracting slices from {file_path}: {e}")
     
-    print(f"Extracted {len(all_slices)} code slices")
-    
     # Filter slices by minimum line count
     filtered_slices = []
     skipped_count = 0
@@ -88,34 +86,22 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
         else:
             skipped_count += 1
     
-    if skipped_count > 0:
-        print(f"Filtered out {skipped_count} slices shorter than {config.min_lines} lines")
-    
     all_slices = filtered_slices
-    print(f"Analyzing {len(all_slices)} slices (min {config.min_lines} lines)")
     
     # Filter slices by maximum line count
     if config.max_lines:
         max_filtered_slices = []
-        max_skipped_count = 0
         for slice in all_slices:
             line_count = slice.end_line - slice.start_line + 1
             if line_count <= config.max_lines:
                 max_filtered_slices.append(slice)
-            else:
-                max_skipped_count += 1
-        
-        if max_skipped_count > 0:
-            print(f"Filtered out {max_skipped_count} slices longer than {config.max_lines} lines")
         
         all_slices = max_filtered_slices
-        print(f"Analyzing {len(all_slices)} slices (max {config.max_lines} lines)")
     
     # Filter slices by required evidence patterns
     if config.require_evidence:
         import re
         evidence_filtered_slices = []
-        evidence_skipped_count = 0
         
         for slice in all_slices:
             slice_text = slice.code.lower()  # Case-insensitive matching
@@ -128,14 +114,10 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
             
             if all_patterns_match:
                 evidence_filtered_slices.append(slice)
-            else:
-                evidence_skipped_count += 1
-        
-        if evidence_skipped_count > 0:
-            print(f"Filtered out {evidence_skipped_count} slices missing required evidence patterns: {', '.join(config.require_evidence)}")
         
         all_slices = evidence_filtered_slices
-        print(f"Analyzing {len(all_slices)} slices with required evidence")
+    
+    print(f"Analyzing {len(all_slices)} code slices...")
     
     if not all_slices:
         return VulnerabilityReport(
@@ -178,8 +160,7 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
             "pattern_matched": slice.pattern_matched
         })
     
-    # Analyze slices with LLM (now with live progress tracking)
-    print("Analyzing code slices with LLM...")
+    # Analyze slices with LLM
     llm_results = llm_analyzer.analyze_slices(slice_data)
     
     # Convert LLM results to VulnerabilityFinding objects
@@ -214,24 +195,16 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
     # Filter findings by only_rules if specified
     if config.only_rules:
         rule_filtered_findings = []
-        rule_skipped_count = 0
         
         for finding in findings:
             if finding.rule_id in config.only_rules:
                 rule_filtered_findings.append(finding)
-            else:
-                rule_skipped_count += 1
-        
-        if rule_skipped_count > 0:
-            print(f"Filtered out {rule_skipped_count} findings not matching specified rules: {', '.join(config.only_rules)}")
         
         findings = rule_filtered_findings
-        print(f"Analyzing {len(findings)} findings matching specified rules")
     
     # Filter findings by rule-specific severity thresholds
     if config.min_severity_per_rule:
         rule_filtered_findings = []
-        rule_filtered_count = 0
         
         for finding in findings:
             rule_id = finding.rule_id
@@ -249,14 +222,9 @@ def scan_repository(path: Union[str, Path], config: Optional[ScanConfig] = None)
                 # Only keep findings that meet or exceed the rule-specific threshold
                 if finding.severity.value >= min_severity.value:
                     rule_filtered_findings.append(finding)
-                else:
-                    rule_filtered_count += 1
             else:
                 # No specific threshold for this rule, keep it
                 rule_filtered_findings.append(finding)
-        
-        if rule_filtered_count > 0:
-            print(f"Filtered out {rule_filtered_count} findings below rule-specific severity thresholds")
         
         findings = rule_filtered_findings
     
